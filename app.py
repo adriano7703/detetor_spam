@@ -1,0 +1,188 @@
+import streamlit as st
+import pandas as pd
+import numpy as np
+import re
+from nltk.corpus import stopwords
+from nltk.stem import WordNetLemmatizer
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics import confusion_matrix, accuracy_score
+import seaborn as sns
+import matplotlib.pyplot as plt
+from wordcloud import WordCloud
+from pickle import load
+import nltk
+import altair as alt
+import os
+
+# Configurar NLTK
+nltk.data.path.append(os.path.join(os.path.dirname(__file__), "nltk_data"))
+
+# Configuração da página
+st.set_page_config(page_title="Detetor de Spam em Email", page_icon="📧")
+
+# Estilo CSS
+st.markdown("""
+    <style>
+    .main {background-color: #f0f2f6;}
+    .stButton>button {background-color: #4CAF50; color: white; border-radius: 5px;}
+    /* Sidebar com fundo branco e letras pretas */
+    [data-testid="stSidebar"] {background-color: white;}
+    [data-testid="stSidebar"] * {color: black !important;}
+    /* Área de texto com fundo branco e letras pretas */
+    .stTextArea textarea {background-color: white !important; color: black !important;}
+    .stTextArea label {color: black !important;}
+    /* Todos os títulos e textos em preto */
+    h1, h2, h3 {color: black !important;}
+    .stSuccess, .stError {color: black !important;}
+    .stMarkdown p, .stMarkdown div {color: black !important;}
+    .stAlert {border-radius: 5px;}
+    </style>
+""", unsafe_allow_html=True)
+
+# Título
+st.title("📧 Detetor de Spam em Email")
+
+# Funções de pré-processamento com cache
+@st.cache_data
+def preprocessar_texto(texto):
+    texto = str(texto)
+    texto = re.sub(r'[^a-zA-Z0-9\s!$]', " ", texto, flags=re.IGNORECASE)
+    texto = re.sub(r'\s+', " ", texto.lower().strip())
+    return texto.split()
+
+@st.cache_data
+def lematizar_texto(palavras):
+    lematizador = WordNetLemmatizer()
+    palavras_ignoradas = set(stopwords.words("english"))
+    tokens = [lematizador.lemmatize(palavra) for palavra in palavras]
+    tokens = [palavra for palavra in tokens if palavra not in palavras_ignoradas and len(palavra) > 3]
+    return tokens
+
+# Carregar modelo e vetorizador
+@st.cache_resource
+def load_model_and_vectorizer():
+    try:
+        BASE_DIR = os.path.dirname(__file__)
+        modelo = load(open(os.path.join(BASE_DIR, "models/detector_spam.sav"), "rb"))
+        vetorizador = load(open(os.path.join(BASE_DIR, "models/tfidf_vectorizer.sav"), "rb"))
+        return modelo, vetorizador
+    except Exception as e:
+        st.error(f"Erro ao carregar modelo ou vetorizador: {e}")
+        return None, None
+
+modelo, vetorizador = load_model_and_vectorizer()
+
+# Abas
+tab1, tab2 = st.tabs(["Classificador", "Métricas"])
+
+with tab1:
+    st.header("📥 Insira seu Email")
+    user_input = st.text_area("Digite o texto do email para verificar:", height=100, key="user_input")
+
+    # Botões de exemplo
+    st.subheader("Testar Exemplos")
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("Testar Spam"):
+            user_input = "Ganhe um iPhone grátis agora!"
+            st.session_state.user_input = user_input
+    with col2:
+        if st.button("Testar Não Spam"):
+            user_input = "Olá, como você está?"
+            st.session_state.user_input = user_input
+
+    with st.spinner("Classificando..."):
+        if st.button("Verificar"):
+            if user_input and modelo and vetorizador:
+                processed_input = preprocessar_texto(user_input)
+                lematized_input = lematizar_texto(processed_input)
+                input_string = " ".join(lematized_input)
+                X_text = vetorizador.transform([input_string]).toarray()
+                url_length = len(lematized_input)
+                word_count = len(lematized_input)
+                has_url = 1 if 'http' in user_input.lower() or 'www' in user_input.lower() else 0
+                X_length = np.array([[url_length, word_count, has_url]])
+                X = np.hstack((X_text, X_length))
+                prediction = modelo.predict(X)[0]
+                st.header("Resultado")
+                if prediction == 1:
+                    st.error("⚠️ **Spam Detectado!** Este email parece suspeito.")
+                else:
+                    st.success("✅ **Seguro!** Este email não é spam.")
+                prob_score = modelo.predict_proba(X)[0][1]
+                st.subheader("Score de Confiança")
+                st.write(f"Probabilidade de ser Spam: {prob_score:.4f}")
+                chart_data = pd.DataFrame({
+                    'Classe': ['Não Spam', 'Spam'],
+                    'Score': [1 - prob_score, prob_score]
+                })
+                chart = alt.Chart(chart_data).mark_bar().encode(
+                    x='Classe',
+                    y='Score',
+                    color='Classe',
+                    tooltip=['Classe', 'Score']
+                ).properties(width=400, height=300)
+                st.altair_chart(chart, use_container_width=True)
+                st.subheader("Nuvem de Palavras")
+                try:
+                    wordcloud = WordCloud(
+                        width=400, height=400,
+                        background_color="white",
+                        max_words=50,
+                        min_font_size=10,
+                        random_state=42
+                    ).generate(input_string)
+                    fig, ax = plt.subplots()
+                    ax.imshow(wordcloud, interpolation="bilinear")
+                    ax.axis("off")
+                    st.pyplot(fig)
+                except ValueError:
+                    st.warning("Texto insuficiente para gerar nuvem de palavras.")
+                result = pd.DataFrame({
+                    'Email': [user_input],
+                    'Classificação': ['Spam' if prediction == 1 else 'Não Spam'],
+                    'Probabilidade de Spam': [prob_score]
+                })
+                csv = result.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="Baixar Resultado",
+                    data=csv,
+                    file_name="resultado_spam.csv",
+                    mime="text/csv"
+                )
+            else:
+                st.warning("Por favor, insira um email válido ou verifique se o modelo foi carregado corretamente.")
+
+with tab2:
+    st.header("📊 Métricas do Modelo")
+    try:
+        BASE_DIR = os.path.dirname(__file__)
+        X_teste = pd.read_csv(os.path.join(BASE_DIR, "data/processed/X_teste.csv")).values
+        y_teste = pd.read_csv(os.path.join(BASE_DIR, "data/spam.csv"), encoding='latin1')["v1"].map({'ham': 0, 'spam': 1}).iloc[-len(X_teste):].values
+        previsoes = modelo.predict(X_teste)
+        acuracia = accuracy_score(y_teste, previsoes)
+        cm = confusion_matrix(y_teste, previsoes)
+        st.write(f"**Acurácia**: {acuracia:.4f}")
+        st.subheader("Matriz de Confusão")
+        fig, ax = plt.subplots(figsize=(6, 4))
+        sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", xticklabels=["Não Spam", "Spam"], yticklabels=["Não Spam", "Spam"], ax=ax)
+        ax.set_xlabel("Previsto")
+        ax.set_ylabel("Real")
+        st.pyplot(fig)
+    except Exception as e:
+        st.warning(f"Erro ao carregar métricas: {e}")
+
+# Sidebar com resumo
+st.sidebar.header("ℹ️ Sobre o Autor")
+st.sidebar.markdown("""
+**Adriano Júlio**  
+Estudante do 3º ano de Ciências da Computação na Universidade Mandume ya Ndemufayo, apaixonado por inteligência artificial e desenvolvimento de soluções tecnológicas. Este projeto foi desenvolvido como parte de estudos em machine learning, com foco em classificação de texto.
+
+**Sobre o Projeto**  
+Este trabalho implementa um detetor de spam em emails usando um modelo RandomForest otimizado. O modelo utiliza:
+- **TF-IDF com bigrams** para extrair características textuais relevantes.
+- **SMOTE** para balancear o dataset, garantindo alta acurácia (~90-95%).
+- **Feature de URLs** para melhorar a detecção de spam.
+- Interface interativa em **Streamlit** com visualizações como nuvem de palavras e matriz de confusão.
+
+""")
