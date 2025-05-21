@@ -1,1 +1,1 @@
-nltk
+# Pacotes do sistema (se necessário, adicione apenas pacotes como python3, git, etc.)
