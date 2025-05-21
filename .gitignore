@@ -1,1 +1,6 @@
-*.swp
+meu_ambiente/
+app.py.save
+download_nltk.py
+Untitled.ipynb
+*.pyc
+__pycache__/
