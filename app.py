@@ -295,7 +295,7 @@ with tab2:
             st.error(f"Falha no cálculo de métricas de fallback: {e2}")
 
 # Sidebar com resumo
-st.sidebar.header("ℹ️ Sobre o Cientista")
+st.sidebar.header("ℹ️ Sobre o Desenvolvedor")
 st.sidebar.markdown("""
 **Adriano Júlio**  
 Estudante do 3º ano de Ciências da Computação na Universidade Mandume ya Ndemufayo(IPH), apaixonado por inteligência artificial e desenvolvimento de soluções tecnológicas. Este projeto foi desenvolvido como parte de estudos em machine learning(Aprendizagem Computacional), com foco em classificação de texto.
