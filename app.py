@@ -6,6 +6,7 @@ from nltk.corpus import stopwords
 from nltk.stem import SnowballStemmer
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.metrics import confusion_matrix, accuracy_score, classification_report
+from sklearn.model_selection import learning_curve
 import seaborn as sns
 import matplotlib.pyplot as plt
 from wordcloud import WordCloud
@@ -15,19 +16,17 @@ import altair as alt
 import os
 
 # Configurar NLTK
-# Remova ou comente a linha abaixo se usar dados locais
-# nltk.download('stopwords', quiet=True)
 nltk.data.path.append(os.path.join(os.path.dirname(__file__), "nltk_data"))
 
 # Configuração da página
-st.set_page_config(page_title="Detetor de Spam em E-mail", page_icon="📱")
+st.set_page_config(page_title="Detetor de Spam em E-mail", page_icon="📧")
 
-# Estilo CSS
+# Estilo CSS corrigido
 st.markdown("""
     <style>
     /* Fundo e layout geral */
     .main {
-        background-color: #red;
+        background-color: #black;
         color: #white;
         font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     }
@@ -39,7 +38,7 @@ st.markdown("""
 
     /* Títulos e texto */
     h1, h2, h3 {
-        color: #1e3a8a; /* Azul escuro */
+        color: #1e3a8a;
         font-weight: 600;
         text-align: center;
     }
@@ -58,7 +57,7 @@ st.markdown("""
         font-size: 16px;
     }
     .stTextArea label {
-        color: #1e3a8a;
+        color: #black;
         font-weight: 500;
     }
 
@@ -85,7 +84,7 @@ st.markdown("""
     /* Botões */
     .stButton>button {
         background-color: #1e3a8a;
-        color: red;
+        color: #ffffff;
         border-radius: 8px;
         padding: 10px 20px;
         font-size: 16px;
@@ -93,7 +92,7 @@ st.markdown("""
         transition: background-color 0.3s;
     }
     .stButton>button:hover {
-        background-color: #164e91;
+        background-color: #1e40af;
     }
 
     /* Alertas */
@@ -114,20 +113,14 @@ st.markdown("""
     }
 
     /* Sidebar */
-    .css-1aumxhk {
-        background-color: #4a90e2;
-        color: white;
-    
-        border-right: 1px solid #e5e7eb;
+    .css-1v3fvcr {
+        background-color: #e5e7eb;
+        color: #white;
+        border-right: 1px solid #d1d5db;
         padding: 20px;
-        
     }
     </style>
 """, unsafe_allow_html=True)
-
-# Função para adicionar features (não necessária, mas mantida)
-def adicionar_features_texto(texto, tokens):
-    return len(tokens), len(tokens), 0, 0  # Placeholder
 
 # Funções de pré-processamento com cache
 @st.cache_data
@@ -159,7 +152,7 @@ def load_model_and_vectorizer():
 modelo, vetorizador = load_model_and_vectorizer()
 
 # Título
-st.title("📱 Detetor de Spam em E-mail")
+st.title("📧 Detetor de Spam em E-mail")
 
 # Abas
 tab1, tab2 = st.tabs(["Classificador", "Métricas"])
@@ -167,63 +160,64 @@ tab1, tab2 = st.tabs(["Classificador", "Métricas"])
 with tab1:
     st.header("📥 Insira sua Mensagem")
     user_input = st.text_area("Digite o texto da mensagem para verificar:", height=100, key="user_input")
-
-    with st.spinner("Classificando..."):
+    
+    if st.button("Classificar Mensagem"):
         if user_input and modelo and vetorizador:
-            processed_input = preprocessar_texto(user_input)
-            clean_input = limpar_texto(processed_input)
-            X_text = vetorizador.transform([clean_input]).toarray()
-            prediction = modelo.predict(X_text)[0]
-            prob_score = modelo.predict_proba(X_text)[0][1]
+            with st.spinner("Classificando..."):
+                processed_input = preprocessar_texto(user_input)
+                clean_input = limpar_texto(processed_input)
+                X_text = vetorizador.transform([clean_input]).toarray()
+                prediction = modelo.predict(X_text)[0]
+                prob_score = modelo.predict_proba(X_text)[0][1]
 
-            st.header("Resultado")
-            if prediction == 1:
-                st.markdown(f'<div class="spam-result">⚠️ **Spam Detectado!** Esta mensagem parece suspeita.</div>', unsafe_allow_html=True)
-            else:
-                st.markdown(f'<div class="safe-result">✅ **Seguro!** Esta mensagem não é spam.</div>', unsafe_allow_html=True)
+                st.header("Resultado")
+                if prediction == 1:
+                    st.markdown(f'<div class="spam-result">⚠️ **Spam Detectado!** Esta mensagem parece suspeita.</div>', unsafe_allow_html=True)
+                else:
+                    st.markdown(f'<div class="safe-result">✅ **Seguro!** Esta mensagem não é spam.</div>', unsafe_allow_html=True)
 
-            st.subheader("Score de Confiança")
-            st.write(f"Probabilidade de ser Spam: {prob_score:.4f}")
-            chart_data = pd.DataFrame({
-                'Classe': ['Não Spam', 'Spam'],
-                'Score': [1 - prob_score, prob_score]
-            })
-            chart = alt.Chart(chart_data).mark_bar().encode(
-                x='Classe',
-                y='Score',
-                color='Classe',
-                tooltip=['Classe', 'Score']
-            ).properties(width=400, height=300)
-            st.altair_chart(chart, use_container_width=True)
+                st.subheader("Score de Confiança")
+                st.write(f"Probabilidade de ser Spam: {prob_score:.4f}")
+                chart_data = pd.DataFrame({
+                    'Classe': ['Não Spam', 'Spam'],
+                    'Score': [1 - prob_score, prob_score]
+                })
+                chart = alt.Chart(chart_data).mark_bar().encode(
+                    x='Classe',
+                    y='Score',
+                    color='Classe',
+                    tooltip=['Classe', 'Score']
+                ).properties(width=400, height=300)
+                st.altair_chart(chart, use_container_width=True)
 
-            st.subheader("Nuvem de Palavras")
-            try:
-                wordcloud = WordCloud(
-                    width=400, height=400,
-                    background_color="white",
-                    max_words=50,
-                    min_font_size=10,
-                    random_state=42
-                ).generate(user_input)
-                fig, ax = plt.subplots()
-                ax.imshow(wordcloud, interpolation="bilinear")
-                ax.axis("off")
-                st.pyplot(fig)
-            except ValueError:
-                st.warning("Texto insuficiente para gerar nuvem de palavras.")
-            
-            result = pd.DataFrame({
-                'Mensagem': [user_input],
-                'Classificação': ['Spam' if prediction == 1 else 'Não Spam'],
-                'Probabilidade de Spam': [prob_score]
-            })
-            csv = result.to_csv(index=False).encode('utf-8')
-            st.download_button(
-                label="Baixar Resultado",
-                data=csv,
-                file_name="resultado_spam.csv",
-                mime="text/csv"
-            )
+                st.subheader("Nuvem de Palavras")
+                try:
+                    wordcloud = WordCloud(
+                        width=400, height=400,
+                        background_color="white",
+                        max_words=50,
+                        min_font_size=10,
+                        random_state=42
+                    ).generate(user_input)
+                    fig, ax = plt.subplots()
+                    ax.imshow(wordcloud, interpolation="bilinear")
+                    ax.axis("off")
+                    st.pyplot(fig)
+                except ValueError:
+                    st.warning("Texto insuficiente para gerar nuvem de palavras.")
+                
+                result = pd.DataFrame({
+                    'Mensagem': [user_input],
+                    'Classificação': ['Spam' if prediction == 1 else 'Não Spam'],
+                    'Probabilidade de Spam': [prob_score]
+                })
+                csv = result.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="Baixar Resultado",
+                    data=csv,
+                    file_name="resultado_spam.csv",
+                    mime="text/csv"
+                )
         else:
             st.warning("Por favor, insira uma mensagem válida ou verifique se o modelo foi carregado corretamente.")
 
@@ -260,6 +254,28 @@ with tab2:
         ax.set_ylabel("Real")
         st.pyplot(fig)
 
+        st.subheader("Curva de Aprendizado")
+        train_sizes, train_scores, test_scores = learning_curve(
+            modelo, X_teste, y_teste, cv=5, scoring='accuracy', n_jobs=-1,
+            train_sizes=np.linspace(0.1, 1.0, 10), random_state=42
+        )
+        train_mean = np.mean(train_scores, axis=1)
+        train_std = np.std(train_scores, axis=1)
+        test_mean = np.mean(test_scores, axis=1)
+        test_std = np.std(test_scores, axis=1)
+
+        fig, ax = plt.subplots(figsize=(8, 6))
+        ax.plot(train_sizes, train_mean, label="Acurácia de Treinamento", marker='o')
+        ax.fill_between(train_sizes, train_mean - train_std, train_mean + train_std, alpha=0.15)
+        ax.plot(train_sizes, test_mean, label="Acurácia de Validação", marker='o')
+        ax.fill_between(train_sizes, test_mean - test_std, test_mean + test_std, alpha=0.15)
+        ax.set_xlabel("Tamanho do Conjunto de Treinamento")
+        ax.set_ylabel("Acurácia")
+        ax.set_title("Curva de Aprendizado")
+        ax.legend(loc="best")
+        ax.grid(True)
+        st.pyplot(fig)
+
         if st.button("Exibir Detalhes Adicionais"):
             st.write(f"**Número Total de Amostras Teste:** {len(y_teste)}")
             st.write(f"**Proporção de Spam:** {(y_teste.sum() / len(y_teste)):.2%}")
@@ -267,7 +283,7 @@ with tab2:
 
     except Exception as e:
         st.warning(f"Erro ao carregar métricas: {e}")
-        st.warning("O arquivo y_teste.csv não foi encontrado. Por favor, reexecute o treinamento with 'time python treinar_modelo.py'.")
+        st.warning("O arquivo y_teste.csv não foi encontrado. Por favor, reexecute o treinamento com 'python treinar_modelo.py'.")
         try:
             st.write("Tentando calcular métricas com dados de fallback...")
             dados = pd.read_csv(os.path.join(BASE_DIR, "data/spam.csv"), encoding='latin1')
@@ -298,7 +314,7 @@ with tab2:
 st.sidebar.header("ℹ️ Sobre o Desenvolvedor")
 st.sidebar.markdown("""
 **Adriano Júlio**  
-Estudante do 3º ano de Ciências da Computação na Universidade Mandume ya Ndemufayo(IPH), apaixonado por inteligência artificial e desenvolvimento de soluções tecnológicas. Este projeto foi desenvolvido como parte de estudos em machine learning(Aprendizagem Computacional), com foco em classificação de texto.
+Estudante do 3º ano de Ciências da Computação na Universidade Mandume ya Ndemufayo (IPH), apaixonado por inteligência artificial e desenvolvimento de soluções tecnológicas. Este projeto foi desenvolvido como parte de estudos em machine learning, com foco em classificação de texto.
 
 **Sobre o Projeto**  
 Este trabalho implementa um detetor de spam em SMS usando um modelo **Naive Bayes** otimizado. O modelo utiliza:  
