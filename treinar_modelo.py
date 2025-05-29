@@ -31,7 +31,7 @@ def limpar_texto(palavras):
 # Carregar dados
 dados = pd.read_csv("data/spam.csv", encoding='latin1')
 dados = dados[['v1', 'v2']]  # Ajustado para colunas do spam.csv (v1=type, v2=text)
-dados = dados.rename(columns={'v1': 'type', 'v2': 'text'})  # Renomear para compatibilidade
+dados = dados.rename(columns={'v1': 'type', 'v2': 'text'}) 
 dados['type'] = dados['type'].map({'ham': 0, 'spam': 1})
 
 # Verificar balanceamento
@@ -40,12 +40,12 @@ print("Distribuição das classes:\n", dados['type'].value_counts())
 # Pré-processar textos
 dados['clean_text'] = dados['text'].apply(preprocessar_texto).apply(limpar_texto)
 
-# Criar vetorizador (equivalente à DocumentTermMatrix com termos frequentes)
+# Criar vetorizador 
 vetorizador = CountVectorizer(max_features=5000, binary=True)
 X = vetorizador.fit_transform(dados['clean_text']).toarray()
 y = dados['type'].values
 
-# Dividir dados (70/30 como no script R)
+# Dividir dados (70/30)
 X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=0.7, random_state=42)
 
 # Treinar modelo Naive Bayes com suavização Laplace
